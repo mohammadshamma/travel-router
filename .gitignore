@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# This repo is PUBLIC and must contain no credentials or personal identifiers.
+# Everything below stays local. Do not remove these entries.
+# ---------------------------------------------------------------------------
+
+# Router backups: contain etc/shadow (root password hash),
+# etc/tailscale/tailscaled.state (private machine key), and all WiFi PSKs.
+*.tar.gz
+*.tgz
+
+# Readable config dumps: WiFi keys in plaintext.
+config-snapshot/
+
+# Build record and local inventory: public IPs, tailnet name,
+# Tailscale addresses, hostnames, guest password.
+SETUP-LOG.md
+LOCAL-README.md
+
+# Anything explicitly marked local or secret.
+*.local
+*.secret
+*-private.*
