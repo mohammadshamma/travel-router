@@ -221,8 +221,10 @@ case "$INTERFACE" in
 	*) exit 0 ;;
 esac
 [ -n "$(uci -q get tailscale.settings.exit_node_ip)" ] || exit 0
-logger -t tailscale-refresh "ifup on $INTERFACE - scheduling gl_tailscale restart"
 (
+	mkdir /tmp/tailscale-refresh.lock 2>/dev/null || exit 0
+	trap 'rmdir /tmp/tailscale-refresh.lock' EXIT
+	logger -t tailscale-refresh "ifup on $INTERFACE - scheduling gl_tailscale restart"
 	sleep 12
 	/usr/bin/gl_tailscale restart >/dev/null 2>&1
 	logger -t tailscale-refresh "done; guest rule count=$(ip rule show | grep -c 192.168.9)"

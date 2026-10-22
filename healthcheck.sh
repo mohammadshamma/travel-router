@@ -26,7 +26,7 @@ EN=$(uci -q get tailscale.settings.exit_node_ip)
 [ -n "$EN" ] && ok "exit node in UCI ($EN)" || bad "exit node NOT set in UCI - will not survive reload"
 
 # 2. Exit node actually in use right now
-tailscale status 2>/dev/null | grep -qi "active; exit node" \
+tailscale status 2>/dev/null | grep -Ei "(active|idle); exit node" | grep -qvi "; offline" \
 	&& ok "exit node active" \
 	|| bad "exit node NOT active - traffic is not being tunneled"
 
@@ -39,9 +39,18 @@ iptables -t nat -S POSTROUTING 2>/dev/null | grep -q "tailscale0 -j MASQUERADE" 
 LW=0; i=0
 while uci -q get firewall.@forwarding[$i] >/dev/null 2>&1; do
 	[ "$(uci -q get firewall.@forwarding[$i].src)" = "lan" ] &&
-		[ "$(uci -q get firewall.@forwarding[$i].dest)" = "wan" ] && LW=1
+		[ "$(uci -q get firewall.@forwarding[$i].dest)" = "wan" ] &&
+		[ "$(uci -q get firewall.@forwarding[$i].enabled)" != "0" ] && LW=1
 	i=$((i+1))
 done
+if iptables -S zone_lan_forward >/dev/null 2>&1; then
+	iptables -S zone_lan_forward 2>/dev/null | grep -q "zone_wan_dest_ACCEPT" && LW=1
+	ip6tables -S zone_lan_forward 2>/dev/null | grep -q "zone_wan_dest_ACCEPT" && LW=1
+elif nft list chain inet fw4 forward_lan >/dev/null 2>&1; then
+	nft list chain inet fw4 forward_lan 2>/dev/null | grep -q "accept_to_wan" && LW=1
+else
+	LW=1
+fi
 [ "$LW" = "0" ] && ok "kill switch intact (no lan->wan)" || bad "LEAK: lan->wan forwarding EXISTS"
 
 # 5. Guest bypass (flushed by every WAN change)
@@ -57,7 +66,7 @@ ip route show table 52 2>/dev/null | grep -q "^default" \
 
 # 7. DNS handed to clients directly (kill switch cannot cover dnsmasq's upstream)
 for N in lan guest; do
-	uci -q get dhcp.$N.dhcp_option | grep -q "^6," \
+	uci -q get dhcp.$N.dhcp_option | grep -Eq "(^|[[:space:]])6," \
 		&& ok "$N DHCP resolver set" \
 		|| bad "$N DHCP resolver NOT set - DNS will leak or fail"
 done
